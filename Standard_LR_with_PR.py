@@ -126,7 +126,6 @@ def pr_curve(data, resultDir_s3, output):
         .select(round(col("nTPs") / (col("nTPs") + col("nFPs") + 1e-9),3).alias("precision"),
 			round(col("nTPs") / (col("nTPs") + col("nFNs") + 1e-9),3).alias("recall"),
 			col("threshold"))\
-        .coalesce(1)\
         .save((resultDir_s3+output),"com.databricks.spark.csv",header="true")
 
 #function 4: register template table
@@ -274,6 +273,9 @@ def main(sc, data_path=data_path, pos_file=pos_file, ss_file=ss_file,
     patid_pos = pos_ori.select('matched_positive_id')
     patsim = addID(patid_pos, num_sim, par, 'simid')
 
+    dataset.cache()
+    patsim.cache()
+    ss_ori.cache()
     sim_result_ls = [sim_function(isim, patsim=patsim, dataset=dataset, ss_ori=ss_ori)
                  for isim in range(num_sim)]
 
@@ -286,6 +288,7 @@ def main(sc, data_path=data_path, pos_file=pos_file, ss_file=ss_file,
 
     #combine results from simulations
     dataset_pred = sqlContext.sql(sqlquery)
+    dataset_pred.cache()
 
     #register each result into temp table
     for d in range(num_sim):
@@ -296,6 +299,7 @@ def main(sc, data_path=data_path, pos_file=pos_file, ss_file=ss_file,
 
     #combine results from simulations
     ss_pred = sqlContext.sql(sqlquery2)
+    ss_pred.cache()
 
     #output the predicted score on test data
     all_ss_pred = ss_pred.unionAll(dataset_pred).repartition(1000)
